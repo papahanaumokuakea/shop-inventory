@@ -253,7 +253,7 @@ table.rc tfoot td{background:var(--soft);font-weight:600;text-align:start;font-s
 'use strict';
 const SEED = /*SEED*/[];
 const FIREBASE = {"apiKey": "AIzaSyCPy5fqlk_zuRNWGfHyv75R8alGxZGZjLw", "authDomain": "shop-inventory-e0b8f.firebaseapp.com", "projectId": "shop-inventory-e0b8f", "storageBucket": "shop-inventory-e0b8f.firebasestorage.app", "messagingSenderId": "69574149016", "appId": "1:69574149016:web:b96ac3959f8070db4da1ed"};
-const VERSION = '2.0';
+const VERSION = '2.1';
 
 /* ---------- helpers ---------- */
 const AR = '٠١٢٣٤٥٦٧٨٩', FA = '۰۱۲۳۴۵۶۷۸۹';
@@ -263,6 +263,8 @@ const NF = new Intl.NumberFormat('ar-EG-u-nu-arab', {maximumFractionDigits: 2, u
 const NF1 = new Intl.NumberFormat('ar-EG-u-nu-arab', {maximumFractionDigits: 1});
 const r2 = n => Math.round((+n || 0) * 100) / 100;
 const fm = n => NF.format(r2(n));   // no thousands mark: only the decimal comma, low on the line, like the receipts
+const qtyTxt = n => (+n || 0) <= 0 ? 'نفد' : fm(n);   // a lone ٠ reads like a dot
+const qIn = n => (+n || 0) <= 0 ? '' : fm(n);
 const pct = n => NF1.format(Math.round((+n || 0) * 10) / 10) + '٪';
 const num = s => { const t = toEn(s).replace(/٫/g, '.').replace(/[٬,\s]/g, ''); return t === '' ? NaN : Number(t); };
 const norm = s => toEn(s).toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim();
@@ -287,11 +289,11 @@ const ICON = {
 let S = null;
 const blankLocal = () => ({lastSync: 0, showMoney: false, showCost: true, kbNum: false, driveHint: false, scale: 1, lastBackup: Date.now(), dirty: false, sync: null});
 const blank = () => ({v: 2, items: [], moves: [], deliveries: [], draft: {inv: '', supplier: '', paper: '', lines: []},
-  settings: {shop: 'المحل', markup: 25, rounding: 'smart', low: 2}, local: blankLocal()});
+  settings: {shop: 'الطارق', markup: 25, rounding: 'smart', low: 2}, local: blankLocal()});
 function normalize(x) {
   const b = blank(); x = Object.assign(b, x || {});
   const old = x.settings || {};
-  x.settings = {shop: old.shop ?? 'المحل', markup: old.markup ?? 25, rounding: old.rounding ?? 'smart', low: old.low ?? 2};
+  x.settings = {shop: (!old.shop || old.shop === 'المحل') ? 'الطارق' : old.shop, markup: old.markup ?? 25, rounding: old.rounding ?? 'smart', low: old.low ?? 2};
   x.local = Object.assign(blankLocal(), {showMoney: old.showMoney, kbNum: old.kbNum, lastBackup: old.lastBackup, dirty: old.dirty}, x.local || {});
   for (const k of Object.keys(x.local)) if (x.local[k] === undefined) x.local[k] = blankLocal()[k];
   return x;
@@ -398,7 +400,8 @@ const Cloud = {
       F.onSnapshot(col('moves'), opts, onCol('moves')),
       F.onSnapshot(col('deliveries'), opts, onCol('deliveries')),
       F.onSnapshot(F.doc(this.db, 'shops', key, 'meta', 'settings'), opts, snap => {
-        if (snap.exists()) { const d = snap.data(); for (const k of ['shop', 'markup', 'rounding', 'low']) if (d[k] !== undefined) S.settings[k] = d[k]; }
+        if (snap.exists()) { const d = snap.data(); for (const k of ['shop', 'markup', 'rounding', 'low']) if (d[k] !== undefined) S.settings[k] = d[k];
+          if (d.shop === 'المحل' && !snap.metadata.fromCache) { S.settings.shop = 'الطارق'; this.write([{t: 'settings', data: {shop: 'الطارق'}}]); } }
         this.got.settings = snap.metadata; this.changed();
       })
     ];
@@ -485,7 +488,7 @@ let view = 'sell';
 const ui = {q: '', pick: null, sq: '', filter: 'all', rq: '', rPick: null};
 function render() {
   document.body.style.zoom = S.local.scale || 1;
-  const shop = S.settings.shop || 'المحل';
+  const shop = S.settings.shop || 'الطارق';
   $('shopName').textContent = shop; $('av').textContent = shop.replace(/^ال/, '').trim().charAt(0) || 'م';
   $('greet').textContent = (new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير') + ' · ' + DF.format(new Date());
   const days = Math.floor((Date.now() - S.local.lastBackup) / DAY);
@@ -528,7 +531,7 @@ function drawSellBody() {
     const it = byId(ui.pick.id), p = ui.pick, short = p.qty > it.qty, showCost = S.local.showCost;
     b.innerHTML = `<div class="pick">
       <div class="row" style="align-items:flex-start"><div class="grow"><div class="name">${esc(it.name)}</div><div class="meta">${toAr(esc(it.code))} · ${esc(it.brand)}</div></div><button class="iconbtn" id="pX" title="إغلاق">✕</button></div>
-      <div class="mid"><div>في المخزن: <b>${fm(it.qty)}</b> ${statTag(it)}</div>
+      <div class="mid"><div>${it.qty <= 0 ? statTag(it) : `في المخزن: <b>${fm(it.qty)}</b> ${statTag(it)}`}</div>
         <div>${p.edit ? `<input id="pPrice" inputmode="decimal" style="width:120px;text-align:center;font-weight:700" value="${fm(p.price)}">`
           : showCost ? `<button class="link" id="pEdit">سعر آخر</button>` : `<span class="big">${fm(p.price)}</span> ج <button class="link small" id="pEdit">سعر آخر</button>`}</div></div>
       ${showCost ? `<div class="pstrip"><div><small>الشراء</small><b>${fm(it.cost)}</b></div><div><small>الربح</small><b>${pct(realMk(it.cost, p.price))}</b></div><div class="hl"><small>سعر البيع</small><b>${fm(p.price)}</b></div></div>
@@ -537,7 +540,7 @@ function drawSellBody() {
       ${p.price !== it.price ? `<div class="salenote"><span>السعر المعتاد ${fm(it.price)} ج — هذا لهذه البيعة فقط</span>${p.price < it.cost ? '<b style="color:var(--out)">أقل من سعر الشراء</b>' : ''}<button class="link small" id="pKeep">اجعله السعر الدائم</button><button class="link small" id="pReset">رجوع</button></div>` : ''}
       <div class="sellrow"><div class="stepper"><button id="pMinus">−</button><input id="pQty" inputmode="numeric" value="${fm(p.qty)}"><button id="pPlus">+</button></div>
         <button class="btn pri" id="pSell" ${short || !(p.qty > 0) ? 'disabled' : ''}>بيع${p.qty > 1 ? ' · ' + fm(p.qty * p.price) + ' ج' : ''}</button></div>
-      ${short ? `<div class="warnline">المتاح ${fm(it.qty)} فقط. إذا كان العدد غلط، صحّحه من المخزن.</div>` : ''}
+      ${short ? `<div class="warnline">${it.qty <= 0 ? 'الصنف نفد من المخزن.' : `المتاح ${fm(it.qty)} فقط.`} إذا كان العدد غلط، صحّحه من المخزن.</div>` : ''}
     </div>`;
     $('pX').onclick = () => { ui.pick = null; drawSellBody(); $('q').focus(); };
     $('pMinus').onclick = () => { if (p.qty > 1) { p.qty--; drawSellBody(); } };
@@ -563,7 +566,7 @@ function drawSellBody() {
   if (!ui.q.trim()) { b.innerHTML = `<div class="empty">${ICON.tag}اكتب الكود أو جزء من الاسم، ثم اختر الصنف</div>`; return; }
   const r = search(ui.q);
   b.innerHTML = r.length ? '<div class="results">' + r.map(it => `<button class="res" data-id="${it.id}">
-      <div class="ri"><b>${esc(it.name)}</b><span class="meta">${toAr(esc(it.code))} · ${esc(it.brand)}</span><span class="meta">في المخزن ${fm(it.qty)} ${statTag(it)}</span></div>
+      <div class="ri"><b>${esc(it.name)}</b><span class="meta">${toAr(esc(it.code))} · ${esc(it.brand)}</span><span class="meta">${it.qty <= 0 ? statTag(it) : `في المخزن ${fm(it.qty)} ${statTag(it)}`}</span></div>
       <div class="rp"><span class="price">${fm(it.price)} ج</span>${S.local.showCost ? `<span class="cost">شراء ${fm(it.cost)} · ${pct(realMk(it.cost, it.price))}</span>` : ''}</div></button>`).join('') + '</div>'
     : `<div class="empty">لا يوجد صنف بهذا الكود أو الاسم.<br><button class="link" id="goAdd">إضافة صنف جديد</button></div>`;
   b.querySelectorAll('.res').forEach(x => x.onclick = () => pickItem(x.dataset.id));
@@ -635,7 +638,7 @@ function drawTable() {
   $('tbl').innerHTML = `<table class="rc"><thead><tr><th>م</th><th>كود الصنف</th><th>اسم الصنف</th><th>الكمية</th><th>سعر الشراء</th><th>سعر البيع</th><th>الربح</th></tr></thead><tbody>` +
     (rows.length ? rows.map(([n, it]) => { const s = stat(it);
       return `<tr data-id="${it.id}"><td>${fm(n)}</td><td class="code">${toAr(esc(it.code))}</td><td class="nm">${esc(it.name)}<span class="brand">${esc(it.brand)}</span></td>
-        <td class="q ${s}">${fm(it.qty)}${s !== 'ok' ? `<span class="dot ${s}"></span>` : ''}</td><td>${fm(it.cost)}</td><td class="sp">${fm(it.price)}</td><td class="muted">${pct(realMk(it.cost, it.price))}</td></tr>`; }).join('')
+        <td class="q ${s}">${qtyTxt(it.qty)}</td><td>${fm(it.cost)}</td><td class="sp">${fm(it.price)}</td><td class="muted">${pct(realMk(it.cost, it.price))}</td></tr>`; }).join('')
       : `<tr><td colspan="7" class="empty">لا توجد أصناف</td></tr>`) +
     `</tbody><tfoot><tr><td colspan="7">العدد ${fm(all.length)} · الكمية ${fm(qty)} · قيمة الشراء ${fm(cv)} ج${S.local.showMoney ? ` · قيمة البيع ${fm(sv)} ج` : ''}</td></tr></tfoot></table>`;
   $('tbl').querySelectorAll('tbody tr[data-id]').forEach(tr => tr.onclick = () => openItem(tr.dataset.id));
@@ -653,7 +656,7 @@ function openItem(id, preset = {}) {
     <div class="row"><div class="f grow"><label>كود الصنف</label><input id="iCode" value="${esc(toAr(P.code))}" autocomplete="off"></div>
       <div class="f grow"><label>الماركة</label><input id="iBrand" value="${esc(P.brand)}" list="brandList"><datalist id="brandList">${brands.map(b => `<option value="${esc(b)}">`).join('')}</datalist></div></div>
     <div class="f"><label>اسم الصنف</label><input id="iName" value="${esc(P.name)}"></div>
-    <div class="f row"><label class="grow" style="margin:0">الكمية في المخزن</label><div class="stepper"><button id="iMinus">−</button><input id="iQty" inputmode="numeric" value="${fm(P.qty)}"><button id="iPlus">+</button></div></div>
+    <div class="f row"><label class="grow" style="margin:0">الكمية في المخزن</label><div class="stepper"><button id="iMinus">−</button><input id="iQty" inputmode="numeric" value="${qIn(P.qty)}"><button id="iPlus">+</button></div></div>
     <div class="card">
       <div class="tri"><div class="f"><label>سعر الشراء</label><input id="iCost" inputmode="decimal"></div>
         <div class="f hot"><label>نسبة الربح ٪</label><input id="iMk" inputmode="decimal"></div>
@@ -679,7 +682,7 @@ function openItem(id, preset = {}) {
   $('iPrice').oninput = e => { const v = num(e.target.value); P.price = v > 0 ? v : 0; P.locked = true; P.markup = realMk(P.cost, P.price); sync(); };
   ['iCost', 'iMk', 'iPrice'].forEach(k => $(k).onblur = () => setTimeout(sync, 0));
   $('iChips').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; P.markup = +c.dataset.c; P.locked = false; P.price = priceFrom(P.cost, P.markup); sync(); };
-  const qset = v => { P.qty = Math.max(0, Math.floor(v) || 0); $('iQty').value = fm(P.qty); };
+  const qset = v => { P.qty = Math.max(0, Math.floor(v) || 0); $('iQty').value = qIn(P.qty); };
   $('iMinus').onclick = () => qset(P.qty - 1); $('iPlus').onclick = () => qset(P.qty + 1);
   $('iQty').onchange = e => qset(num(e.target.value));
   $('iX').onclick = $('iCancel').onclick = closePanel;
@@ -740,7 +743,7 @@ function drawRecvForm() {
   const r = it ? [] : search(q, 5);
   sug.innerHTML = r.length ? '<div class="sugg">' + r.map(x => `<button data-id="${x.id}"><span>${esc(x.name)}</span><span class="muted">${toAr(esc(x.code))}</span></button>`).join('') + '</div>' : '';
   sug.querySelectorAll('button').forEach(b => b.onclick = () => { ui.rPick = b.dataset.id; ui.rq = byId(b.dataset.id).code; $('rc').value = ui.rq; drawRecvForm(); });
-  form.innerHTML = (it ? `<div class="small" style="margin:10px 0"><b>${esc(it.name)}</b> <span class="muted">· في المخزن ${fm(it.qty)}</span></div>`
+  form.innerHTML = (it ? `<div class="small" style="margin:10px 0"><b>${esc(it.name)}</b> <span class="muted">· ${it.qty <= 0 ? 'نفد من المخزن' : 'في المخزن ' + fm(it.qty)}</span></div>`
       : `<div class="small muted" style="margin:10px 0">كود جديد — سيُضاف كصنف جديد</div><div class="row"><div class="f grow"><label>اسم الصنف</label><input id="rName"></div><div class="f" style="width:38%"><label>الماركة</label><input id="rBrand"></div></div>`) +
     `<div class="row"><div class="f grow"><label>الكمية</label><input id="rQty" inputmode="numeric"></div><div class="f grow"><label>سعر الشراء</label><input id="rCost" inputmode="decimal" value="${it ? fm(it.cost) : ''}"></div>
       <button class="btn pri" id="rAdd" style="align-self:flex-end;margin-bottom:10px">إضافة</button></div>`;
@@ -811,7 +814,7 @@ function renderSet() {
       <div class="setrow"><span>إظهار سعر الشراء والربح عند البيع</span><button class="switch ${lo.showCost ? 'on' : ''}" id="sCost" aria-label="إظهار سعر الشراء"></button></div></div>
     <h3>المخزن</h3><div class="card">
       <div class="setrow"><span>علامة "قليل" عندما تصل الكمية إلى</span><input id="sLow" inputmode="numeric" value="${fm(st.low)}"></div>
-      <div class="small muted">اكتب ٠ لإظهار علامة "نفد" فقط.</div></div>
+      <div class="small muted">اكتب صفر لإظهار علامة "نفد" فقط.</div></div>
     <h3>ملخص المبيعات</h3><div class="card">
       <div class="setrow"><span>إظهار المبالغ والأرباح</span><button class="switch ${lo.showMoney ? 'on' : ''}" id="sMoney" aria-label="إظهار المبالغ"></button></div>
       ${lo.showMoney ? `<div class="stats">${[[1, 'اليوم'], [7, '٧ أيام'], [30, '٣٠ يوم']].map(([d, l]) => { const s = stats(d);
@@ -829,7 +832,7 @@ function renderSet() {
       <button class="btn danger wide" id="sWipe">مسح كل البيانات من هذا الجهاز</button>
       <div class="small muted" style="text-align:center">الإصدار ${toAr(VERSION)}</div></div>`;
   const shared = data => apply([{t: 'settings', data}]);
-  $('sShop').onchange = e => shared({shop: e.target.value.trim() || 'المحل'});
+  $('sShop').onchange = e => shared({shop: e.target.value.trim() || 'الطارق'});
   $('sMk').onchange = e => { const v = num(e.target.value); if (v >= 0) shared({markup: v}); };
   $('sLow').onchange = e => { const v = Math.floor(num(e.target.value)); if (v >= 0) shared({low: v}); };
   $('sRound').querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.r === st.rounding); b.onclick = () => shared({rounding: b.dataset.r}); });
