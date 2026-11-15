@@ -125,6 +125,7 @@ h3{font-size:13.5px;font-weight:700;color:var(--muted);margin:22px 6px 10px;disp
 .sum div{background:var(--soft);border-radius:14px;padding:8px 10px;font-size:12px;color:var(--muted)}
 .sum b{display:block;font-size:16px;color:var(--ink)}
 .nag{display:flex;align-items:center;gap:10px;background:var(--warn-soft);border-radius:18px;padding:11px 14px;margin-top:12px;font-size:14px}
+.nag.off{background:var(--soft);border:1px dashed var(--line);font-size:13.5px;line-height:1.6}
 .empty{color:var(--muted);text-align:center;padding:22px 8px;font-size:14px}
 .empty svg{display:block;margin:0 auto 8px;width:34px;height:34px;opacity:.5}
 .steps{margin:6px 0 2px;padding-inline-start:22px;font-size:14px;list-style:arabic-indic}
@@ -284,7 +285,7 @@ const ICON = {
    S.items / moves / deliveries / settings are the shop's data (shared when synced).
    S.local is this device only. */
 let S = null;
-const blankLocal = () => ({showMoney: false, showCost: true, kbNum: false, driveHint: false, scale: 1, lastBackup: Date.now(), dirty: false, sync: null});
+const blankLocal = () => ({lastSync: 0, showMoney: false, showCost: true, kbNum: false, driveHint: false, scale: 1, lastBackup: Date.now(), dirty: false, sync: null});
 const blank = () => ({v: 2, items: [], moves: [], deliveries: [], draft: {inv: '', supplier: '', paper: '', lines: []},
   settings: {shop: 'المحل', markup: 25, rounding: 'smart', low: 2}, local: blankLocal()});
 function normalize(x) {
@@ -376,7 +377,11 @@ const Cloud = {
       this.auth = F.initializeAuth(app, {persistence: [F.indexedDBLocalPersistence, F.browserLocalPersistence]});
       this.db = F.initializeFirestore(app, {localCache: F.persistentLocalCache({tabManager: F.persistentSingleTabManager()})});
     }
-    if (!this.auth.currentUser) await F.signInAnonymously(this.auth);
+    if (this.auth.authStateReady) await this.auth.authStateReady();   // restores the saved sign-in, works offline
+    if (!this.auth.currentUser) {
+      try { await F.signInAnonymously(this.auth); }
+      catch (e) { if (navigator.onLine) throw e; window.addEventListener('online', () => F.signInAnonymously(this.auth).catch(() => {}), {once: true}); }
+    }
     this.key = key; this.live = true; this.got = {};
     let resolveFirst; this.firstServer = new Promise(r => resolveFirst = r);
     const col = n => F.collection(this.db, 'shops', key, n);
@@ -433,7 +438,7 @@ const Cloud = {
     }
   },
   changeT: null,
-  changed() { clearTimeout(this.changeT); this.changeT = setTimeout(() => { save(); softRender(); }, 60); }
+  changed() { clearTimeout(this.changeT); this.changeT = setTimeout(() => { if (this.status() === 'ok') S.local.lastSync = Date.now(); save(); softRender(); }, 60); }
 };
 const clean = o => { const x = {}; for (const [k, v] of Object.entries(o)) if (v !== undefined && k !== 'id') x[k] = v; return x; };
 let pendingRender = false;
@@ -591,6 +596,14 @@ function drawToday() {
   el.querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => { if (await ask('التراجع عن هذه البيعة وإرجاع الكمية للمخزن؟', 'تراجع')) undoSale(b.dataset.undo); });
 }
 function drawNag() {
+  const cs = Cloud.status();
+  if (cs === 'offline' || cs === 'wait') {
+    const last = S.local.lastSync ? ` · آخر مزامنة ${(dayStart() <= S.local.lastSync ? '' : DFs.format(S.local.lastSync) + ' ')}${TF.format(S.local.lastSync)}` : '';
+    $('nag').innerHTML = cs === 'offline'
+      ? `<div class="nag off"><span class="grow"><b>غير متصل بالإنترنت</b><br>البيع شغال عادي. المبيعات محفوظة على الجهاز وستظهر على الجهاز الثاني عند رجوع الإنترنت${last}</span></div>`
+      : `<div class="nag off"><span class="grow">جارٍ إرسال آخر المبيعات للجهاز الثاني…</span></div>`;
+    return;
+  }
   const days = Math.floor((Date.now() - S.local.lastBackup) / DAY);
   $('nag').innerHTML = S.local.dirty && days >= 3 && !Cloud.live ? `<div class="nag"><span class="grow">آخر نسخة احتياطية منذ ${fm(days)} يوم</span><button class="btn pri" id="nagB">احفظ الآن</button></div>` : '';
   if ($('nagB')) $('nagB').onclick = backup;
