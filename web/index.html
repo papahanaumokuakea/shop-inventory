@@ -899,7 +899,7 @@ function shareKey() {
   const txt = 'مفتاح المحل (الصقه في «الانضمام لمحل مشترك»):\n\n' + Cloud.key;
   if (navigator.share) navigator.share({text: txt}).catch(() => {});
   else if (window.Capacitor && Capacitor.Plugins.Share) Capacitor.Plugins.Share.share({text: txt}).catch(() => {});
-  else navigator.clipboard.writeText(Cloud.key).then(() => toast('تم نسخ المفتاح'));
+  else (navigator.clipboard ? navigator.clipboard.writeText(Cloud.key) : Promise.reject()).then(() => toast('تم نسخ المفتاح'), () => toast('انسخ المفتاح من الإعدادات وابعته للموبايل التاني'));
 }
 async function leaveShop() {
   if (!await ask('فصل هذا الجهاز عن المحل المشترك؟ تبقى نسخة من البيانات على الجهاز، لكنها لن تتحدث بعد ذلك.', 'فصل', true)) return;
