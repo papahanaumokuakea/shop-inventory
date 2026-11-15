@@ -1,0 +1,41 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'assets/**', 'package.json', 'capacitor.config.json', '.github/workflows/apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - name: Install Capacitor
+        run: npm install
+      - name: Create Android project
+        run: npx cap add android
+      - name: App icon and splash
+        continue-on-error: true
+        run: npx capacitor-assets generate --android --iconBackgroundColor '#2f6f73' --iconBackgroundColorDark '#2f6f73' --splashBackgroundColor '#f5f4f0' --splashBackgroundColorDark '#15171a'
+      - name: Version number
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]+\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+      - name: Same signing key every build (so updates keep his data)
+        run: mkdir -p ~/.android && cp keystore/debug.keystore ~/.android/debug.keystore
+      - name: Sync and build
+        run: |
+          npx cap sync android
+          cd android && ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../shop.apk
+      - name: Publish as release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release delete apk -y --cleanup-tag || true
+          gh release create apk shop.apk --title "تطبيق المخزن (APK) — build ${{ github.run_number }}" --notes "حمّل shop.apk وافتحه على الموبايل للتثبيت. التحديث يُثبَّت فوق النسخة القديمة بدون فقدان البيانات."
