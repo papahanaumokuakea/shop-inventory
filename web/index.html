@@ -253,7 +253,7 @@ table.rc tfoot td{background:var(--soft);font-weight:600;text-align:start;font-s
 'use strict';
 const SEED = /*SEED*/[];
 const FIREBASE = {"apiKey": "AIzaSyCPy5fqlk_zuRNWGfHyv75R8alGxZGZjLw", "authDomain": "shop-inventory-e0b8f.firebaseapp.com", "projectId": "shop-inventory-e0b8f", "storageBucket": "shop-inventory-e0b8f.firebasestorage.app", "messagingSenderId": "69574149016", "appId": "1:69574149016:web:b96ac3959f8070db4da1ed"};
-const VERSION = '2.2';
+const VERSION = '2.3';
 
 /* ---------- helpers ---------- */
 const AR = '٠١٢٣٤٥٦٧٨٩', FA = '۰۱۲۳۴۵۶۷۸۹';
@@ -494,7 +494,7 @@ function render() {
   document.body.style.zoom = S.local.scale || 1;
   const shop = S.settings.shop || 'الطارق';
   $('shopName').textContent = shop; $('av').textContent = shop.replace(/^ال/, '').trim().charAt(0) || 'م';
-  $('greet').textContent = (new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير') + ' · ' + DF.format(new Date());
+  $('greet').textContent = (new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير') + '، ' + DF.format(new Date());
   const days = Math.floor((Date.now() - S.local.lastBackup) / DAY);
   $('cloudBtn').className = 'cloud ' + (!S.local.dirty ? 'ok' : days >= 3 ? 'due' : '');
   $('cloudTxt').textContent = !S.local.dirty ? 'محفوظ' : 'Drive';
@@ -534,7 +534,7 @@ function drawSellBody() {
   if (ui.pick) {
     const it = byId(ui.pick.id), p = ui.pick, short = p.qty > it.qty, showCost = S.local.showCost;
     b.innerHTML = `<div class="pick">
-      <div class="row" style="align-items:flex-start"><div class="grow"><div class="name">${esc(it.name)}</div><div class="meta">${toAr(esc(it.code))} · ${esc(it.brand)}</div></div><button class="iconbtn" id="pX" title="إغلاق">✕</button></div>
+      <div class="row" style="align-items:flex-start"><div class="grow"><div class="name">${esc(it.name)}</div><div class="meta">${toAr(esc(it.code))}، ${esc(it.brand)}</div></div><button class="iconbtn" id="pX" title="إغلاق">✕</button></div>
       <div class="mid"><div>${it.qty <= 0 ? statTag(it) : `في المخزن: <b>${fm(it.qty)}</b> ${statTag(it)}`}</div>
         <div>${p.edit ? `<input id="pPrice" inputmode="decimal" style="width:120px;text-align:center;font-weight:700" value="${fm(p.price)}">`
           : showCost ? `<button class="link" id="pEdit">سعر آخر</button>` : `<span class="big">${fm(p.price)}</span> ج <button class="link small" id="pEdit">سعر آخر</button>`}</div></div>
@@ -543,7 +543,7 @@ function drawSellBody() {
         return [10, 15, 20, 25, 30].map(c => `<button class="chip ${c === on ? 'on' : ''}" data-c="${c}">${pct(c)}</button>`).join(''); })()}</div>` : ''}
       ${p.price !== it.price ? `<div class="salenote"><span>السعر المعتاد ${fm(it.price)} ج — هذا لهذه البيعة فقط</span>${p.price < it.cost ? '<b style="color:var(--out)">أقل من سعر الشراء</b>' : ''}<button class="link small" id="pKeep">اجعله السعر الدائم</button><button class="link small" id="pReset">رجوع</button></div>` : ''}
       <div class="sellrow"><div class="stepper"><button id="pMinus">−</button><input id="pQty" inputmode="numeric" value="${fm(p.qty)}"><button id="pPlus">+</button></div>
-        <button class="btn pri" id="pSell" ${short || !(p.qty > 0) ? 'disabled' : ''}>بيع${p.qty > 1 ? ' · ' + fm(p.qty * p.price) + ' ج' : ''}</button></div>
+        <button class="btn pri" id="pSell" ${short || !(p.qty > 0) ? 'disabled' : ''}>${p.qty > 1 ? `بيع بـ ${fm(p.qty * p.price)} ج` : 'بيع'}</button></div>
       ${short ? `<div class="warnline">${it.qty <= 0 ? 'الصنف نفد من المخزن.' : `المتاح ${fm(it.qty)} فقط.`} إذا كان العدد غلط، صحّحه من المخزن.</div>` : ''}
     </div>`;
     $('pX').onclick = () => { ui.pick = null; drawSellBody(); $('q').focus(); };
@@ -570,8 +570,8 @@ function drawSellBody() {
   if (!ui.q.trim()) { b.innerHTML = `<div class="empty">${ICON.tag}اكتب الكود أو جزء من الاسم، ثم اختر الصنف</div>`; return; }
   const r = search(ui.q);
   b.innerHTML = r.length ? '<div class="results">' + r.map(it => `<button class="res" data-id="${it.id}">
-      <div class="ri"><b>${esc(it.name)}</b><span class="meta">${toAr(esc(it.code))} · ${esc(it.brand)}</span><span class="meta">${it.qty <= 0 ? statTag(it) : `في المخزن ${fm(it.qty)} ${statTag(it)}`}</span></div>
-      <div class="rp"><span class="price">${fm(it.price)} ج</span>${S.local.showCost ? `<span class="cost">شراء ${fm(it.cost)} · ${pct(realMk(it.cost, it.price))}</span>` : ''}</div></button>`).join('') + '</div>'
+      <div class="ri"><b>${esc(it.name)}</b><span class="meta">${toAr(esc(it.code))}، ${esc(it.brand)}</span><span class="meta">${it.qty <= 0 ? statTag(it) : `في المخزن ${fm(it.qty)} ${statTag(it)}`}</span></div>
+      <div class="rp"><span class="price">${fm(it.price)} ج</span>${S.local.showCost ? `<span class="cost">شراء ${fm(it.cost)} — ربح ${pct(realMk(it.cost, it.price))}</span>` : ''}</div></button>`).join('') + '</div>'
     : `<div class="empty">لا يوجد صنف بهذا الكود أو الاسم.<br><button class="link" id="goAdd">إضافة صنف جديد</button></div>`;
   b.querySelectorAll('.res').forEach(x => x.onclick = () => pickItem(x.dataset.id));
   if (!r.length) $('goAdd').onclick = () => openItem(null, {code: ui.q.trim()});
@@ -606,7 +606,7 @@ function drawToday() {
 function drawNag() {
   const cs = Cloud.status();
   if (cs === 'offline' || cs === 'wait') {
-    const last = S.local.lastSync ? ` · آخر مزامنة ${(dayStart() <= S.local.lastSync ? '' : DFs.format(S.local.lastSync) + ' ')}${TF.format(S.local.lastSync)}` : '';
+    const last = S.local.lastSync ? `، آخر مزامنة ${(dayStart() <= S.local.lastSync ? '' : DFs.format(S.local.lastSync) + ' ')}${TF.format(S.local.lastSync)}` : '';
     $('nag').innerHTML = cs === 'offline'
       ? `<div class="nag off"><span class="grow"><b>غير متصل بالإنترنت</b><br>البيع شغال عادي. المبيعات محفوظة على الجهاز وستظهر على الجهاز الثاني عند رجوع الإنترنت${last}</span></div>`
       : `<div class="nag off"><span class="grow">جارٍ إرسال آخر المبيعات للجهاز الثاني…</span></div>`;
@@ -644,7 +644,7 @@ function drawTable() {
       return `<tr data-id="${it.id}"><td>${fm(n)}</td><td class="code">${toAr(esc(it.code))}</td><td class="nm">${esc(it.name)}<span class="brand">${esc(it.brand)}</span></td>
         <td class="q ${s}">${qtyTxt(it.qty)}</td><td>${fm(it.cost)}</td><td class="sp">${fm(it.price)}</td><td class="muted">${pct(realMk(it.cost, it.price))}</td></tr>`; }).join('')
       : `<tr><td colspan="7" class="empty">لا توجد أصناف</td></tr>`) +
-    `</tbody><tfoot><tr><td colspan="7">العدد ${fm(all.length)} · الكمية ${fm(qty)} · قيمة الشراء ${fm(cv)} ج${S.local.showMoney ? ` · قيمة البيع ${fm(sv)} ج` : ''}</td></tr></tfoot></table>`;
+    `</tbody><tfoot><tr><td colspan="7">العدد ${fm(all.length)}، الكمية ${fm(qty)}، قيمة الشراء ${fm(cv)} ج${S.local.showMoney ? `، قيمة البيع ${fm(sv)} ج` : ''}</td></tr></tfoot></table>`;
   $('tbl').querySelectorAll('tbody tr[data-id]').forEach(tr => tr.onclick = () => openItem(tr.dataset.id));
 }
 
@@ -670,13 +670,13 @@ function openItem(id, preset = {}) {
     </div>
     <div class="row" style="margin-top:14px"><button class="btn pri grow" id="iSave">حفظ</button><button class="btn ghost" id="iCancel">إلغاء</button></div>
     ${it ? `<h3>آخر الحركات</h3><div class="card hist">${hist.length ? hist.map(m => { const q = m.type === 'sale' ? -m.qty : m.qty;
-        return `<div class="h"><span>${DFs.format(m.at)} · ${lbl[m.type] || ''}${m.ref ? ' ' + toAr(esc(m.ref)) : ''}</span><span class="${q < 0 ? 'minus' : 'plus'}">${q > 0 ? '+' : ''}${fm(q)}${m.type !== 'fix' ? ' × ' + fm(m.price) : ''}</span></div>`; }).join('') : '<div class="empty">لا حركات</div>'}</div>
+        return `<div class="h"><span>${DFs.format(m.at)}، ${lbl[m.type] || ''}${m.ref ? ' ' + toAr(esc(m.ref)) : ''}</span><span class="${q < 0 ? 'minus' : 'plus'}">${q > 0 ? '+' : ''}${fm(q)}${m.type !== 'fix' ? ' × ' + fm(m.price) : ''}</span></div>`; }).join('') : '<div class="empty">لا حركات</div>'}</div>
       <div style="text-align:center;margin-top:16px"><button class="btn danger" id="iDel">حذف الصنف</button></div>` : ''}`;
   const set = (id, v) => { const e = $(id); if (e !== document.activeElement) e.value = v; };
   const sync = () => {
     if (!P) return;
     set('iCost', P.cost ? fm(P.cost) : ''); set('iMk', fm(r2(P.markup))); set('iPrice', P.price ? fm(P.price) : '');
-    $('iProfit').textContent = P.cost > 0 && P.price > 0 ? `ربح القطعة ${fm(P.price - P.cost)} ج · فعلي ${pct(realMk(P.cost, P.price))}` : '';
+    $('iProfit').textContent = P.cost > 0 && P.price > 0 ? `ربح القطعة ${fm(P.price - P.cost)} ج، فعلي ${pct(realMk(P.cost, P.price))}` : '';
     $('iLock').innerHTML = P.locked ? 'السعر مثبّت <button class="link small" id="iUnlock">إلغاء</button>' : '';
     if ($('iUnlock')) $('iUnlock').onclick = () => { P.locked = false; P.price = priceFrom(P.cost, P.markup); sync(); };
     document.querySelectorAll('#iChips .chip').forEach(c => c.classList.toggle('on', !P.locked && +c.dataset.c === r2(P.markup)));
@@ -722,14 +722,14 @@ function renderRecv() {
     <h3><span>الأصناف المستلمة</span><span class="small muted">${fm(d.lines.length)} صنف</span></h3>
     <div class="card lines">${d.lines.length ? d.lines.map((l, i) => { const it = l.item ? byId(l.item) : null;
         const note = it ? (Math.abs(l.cost - it.cost) > 0.001 ? (it.locked ? `سعر الشراء تغيّر، سعر البيع يبقى ${fm(it.price)}` : `سعر البيع: ${fm(it.price)} ← ${fm(priceFrom(l.cost, it.markup))}`) : '') : 'صنف جديد';
-        return `<div class="l"><span class="nm">${esc(l.name)}<small>${toAr(esc(l.code))}${note ? ' · ' + note : ''}</small></span><span>${fm(l.qty)} × ${fm(l.cost)}</span><button class="iconbtn" data-rm="${i}">✕</button></div>`; }).join('')
+        return `<div class="l"><span class="nm">${esc(l.name)}<small>${toAr(esc(l.code))}${note ? '، ' + note : ''}</small></span><span>${fm(l.qty)} × ${fm(l.cost)}</span><button class="iconbtn" data-rm="${i}">✕</button></div>`; }).join('')
       : '<div class="empty">لم تتم إضافة أصناف بعد</div>'}</div>
     <div class="card"><div class="row"><span class="grow">الإجمالي</span><b style="font-size:18px">${fm(tot)} ج</b></div>
       <div class="f" style="margin:10px 0 0"><label>إجمالي الفاتورة الورقية (للمراجعة)</label><input id="rPaper" inputmode="decimal" value="${esc(d.paper)}"></div>
       ${paper > 0 && d.lines.length ? (Math.abs(paper - tot) < 0.01 ? '<div class="match ok">✓ يطابق الفاتورة الورقية</div>' : `<div class="match bad">الفرق ${fm(Math.abs(paper - tot))} ج — راجع الكميات والأسعار</div>`) : ''}
     </div>
-    <button class="btn pri wide" id="rSave" ${d.lines.length ? '' : 'disabled'}>إضافة للمخزن${d.lines.length ? ' · ' + fm(d.lines.reduce((a, l) => a + l.qty, 0)) + ' قطعة' : ''}</button>
-    ${recent.length ? `<h3>آخر الاستلامات</h3><div class="card hist">${recent.map(r => `<div class="h"><span>فاتورة ${toAr(esc(r.inv || '—'))} · ${DFs.format(r.at)}</span><span>${fm(r.lines)} صنف · ${fm(r.total)} ج</span></div>`).join('')}</div>` : ''}`;
+    <button class="btn pri wide" id="rSave" ${d.lines.length ? '' : 'disabled'}>${d.lines.length ? `إضافة ${fm(d.lines.reduce((a, l) => a + l.qty, 0))} قطعة للمخزن` : 'إضافة للمخزن'}</button>
+    ${recent.length ? `<h3>آخر الاستلامات</h3><div class="card hist">${recent.map(r => `<div class="h"><span>${r.inv ? 'فاتورة ' + toAr(esc(r.inv)) : 'استلام'}، ${DFs.format(r.at)}</span><span>${fm(r.lines)} صنف، ${fm(r.total)} ج</span></div>`).join('')}</div>` : ''}`;
   $('rInv').oninput = e => { d.inv = e.target.value; save(); };
   $('rSup').oninput = e => { d.supplier = e.target.value; save(); };
   $('rPaper').onchange = e => { d.paper = e.target.value; save(); renderRecv(); };
@@ -747,7 +747,7 @@ function drawRecvForm() {
   const r = it ? [] : search(q, 5);
   sug.innerHTML = r.length ? '<div class="sugg">' + r.map(x => `<button data-id="${x.id}"><span>${esc(x.name)}</span><span class="muted">${toAr(esc(x.code))}</span></button>`).join('') + '</div>' : '';
   sug.querySelectorAll('button').forEach(b => b.onclick = () => { ui.rPick = b.dataset.id; ui.rq = byId(b.dataset.id).code; $('rc').value = ui.rq; drawRecvForm(); });
-  form.innerHTML = (it ? `<div class="small" style="margin:10px 0"><b>${esc(it.name)}</b> <span class="muted">· ${it.qty <= 0 ? 'نفد من المخزن' : 'في المخزن ' + fm(it.qty)}</span></div>`
+  form.innerHTML = (it ? `<div class="small" style="margin:10px 0"><b>${esc(it.name)}</b> <span class="muted">— ${it.qty <= 0 ? 'نفد من المخزن' : 'في المخزن ' + fm(it.qty)}</span></div>`
       : `<div class="small muted" style="margin:10px 0">كود جديد — سيُضاف كصنف جديد</div><div class="row"><div class="f grow"><label>اسم الصنف</label><input id="rName"></div><div class="f" style="width:38%"><label>الماركة</label><input id="rBrand"></div></div>`) +
     `<div class="row"><div class="f grow"><label>الكمية</label><input id="rQty" inputmode="numeric"></div><div class="f grow"><label>سعر الشراء</label><input id="rCost" inputmode="decimal" value="${it ? fm(it.cost) : ''}"></div>
       <button class="btn pri" id="rAdd" style="align-self:flex-end;margin-bottom:10px">إضافة</button></div>`;
