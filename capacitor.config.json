@@ -1,5 +1,12 @@
 {
   "appId": "com.shop.inventory",
   "appName": "المخزن",
-  "webDir": "web"
+  "webDir": "web",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    }
+  },
+  "backgroundColor": "#f4f0e8"
 }
