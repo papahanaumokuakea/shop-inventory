@@ -532,7 +532,8 @@ function drawSellBody() {
         <div>${p.edit ? `<input id="pPrice" inputmode="decimal" style="width:120px;text-align:center;font-weight:700" value="${fm(p.price)}">`
           : showCost ? `<button class="link" id="pEdit">سعر آخر</button>` : `<span class="big">${fm(p.price)}</span> ج <button class="link small" id="pEdit">سعر آخر</button>`}</div></div>
       ${showCost ? `<div class="pstrip"><div><small>الشراء</small><b>${fm(it.cost)}</b></div><div><small>الربح</small><b>${pct(realMk(it.cost, p.price))}</b></div><div class="hl"><small>سعر البيع</small><b>${fm(p.price)}</b></div></div>
-      <div class="qchips" id="pChips">${[10, 15, 20, 25, 30].map(c => `<button class="chip ${roundPrice(it.cost * (1 + c / 100)) === p.price ? 'on' : ''}" data-c="${c}">${pct(c)}</button>`).join('')}</div>` : ''}
+      <div class="qchips" id="pChips">${(() => { const mk = realMk(it.cost, p.price), on = [10, 15, 20, 25, 30].filter(c => roundPrice(it.cost * (1 + c / 100)) === p.price).sort((a, b) => Math.abs(a - mk) - Math.abs(b - mk))[0];
+        return [10, 15, 20, 25, 30].map(c => `<button class="chip ${c === on ? 'on' : ''}" data-c="${c}">${pct(c)}</button>`).join(''); })()}</div>` : ''}
       ${p.price !== it.price ? `<div class="salenote"><span>السعر المعتاد ${fm(it.price)} ج — هذا لهذه البيعة فقط</span>${p.price < it.cost ? '<b style="color:var(--out)">أقل من سعر الشراء</b>' : ''}<button class="link small" id="pKeep">اجعله السعر الدائم</button><button class="link small" id="pReset">رجوع</button></div>` : ''}
       <div class="sellrow"><div class="stepper"><button id="pMinus">−</button><input id="pQty" inputmode="numeric" value="${fm(p.qty)}"><button id="pPlus">+</button></div>
         <button class="btn pri" id="pSell" ${short || !(p.qty > 0) ? 'disabled' : ''}>بيع${p.qty > 1 ? ' · ' + fm(p.qty * p.price) + ' ج' : ''}</button></div>
@@ -666,6 +667,7 @@ function openItem(id, preset = {}) {
       <div style="text-align:center;margin-top:16px"><button class="btn danger" id="iDel">حذف الصنف</button></div>` : ''}`;
   const set = (id, v) => { const e = $(id); if (e !== document.activeElement) e.value = v; };
   const sync = () => {
+    if (!P) return;
     set('iCost', P.cost ? fm(P.cost) : ''); set('iMk', fm(r2(P.markup))); set('iPrice', P.price ? fm(P.price) : '');
     $('iProfit').textContent = P.cost > 0 && P.price > 0 ? `ربح القطعة ${fm(P.price - P.cost)} ج · فعلي ${pct(realMk(P.cost, P.price))}` : '';
     $('iLock').innerHTML = P.locked ? 'السعر مثبّت <button class="link small" id="iUnlock">إلغاء</button>' : '';
