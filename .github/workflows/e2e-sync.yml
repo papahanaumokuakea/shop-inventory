@@ -1,0 +1,16 @@
+name: Two-phone sync test
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'scripts/e2e-sync.mjs', '.github/workflows/e2e-sync.yml']
+  workflow_dispatch:
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - run: (python3 -m http.server 8080 -d web > /dev/null 2>&1 &) && sleep 1
+      - run: node scripts/e2e-sync.mjs

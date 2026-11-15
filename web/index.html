@@ -200,7 +200,7 @@ table.rc tfoot td{background:var(--soft);font-weight:600;text-align:start;font-s
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .stats div{background:var(--soft);border-radius:14px;padding:9px;font-size:12.5px}
 .stats b{display:block;font-size:15px}
-.keybox{direction:ltr;font-family:ui-monospace,monospace;background:var(--soft);border-radius:12px;padding:10px;text-align:center;font-size:15px;letter-spacing:1px;word-break:break-all}
+.keybox{user-select:all;-webkit-user-select:all;direction:ltr;font-family:ui-monospace,monospace;background:var(--soft);border-radius:12px;padding:10px;text-align:center;font-size:15px;letter-spacing:1px;word-break:break-all}
 .aa{display:flex;gap:6px}
 .aa button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:8px 0;font-weight:700;color:var(--muted)}
 .aa button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -253,7 +253,7 @@ table.rc tfoot td{background:var(--soft);font-weight:600;text-align:start;font-s
 'use strict';
 const SEED = /*SEED*/[];
 const FIREBASE = {"apiKey": "AIzaSyCPy5fqlk_zuRNWGfHyv75R8alGxZGZjLw", "authDomain": "shop-inventory-e0b8f.firebaseapp.com", "projectId": "shop-inventory-e0b8f", "storageBucket": "shop-inventory-e0b8f.firebasestorage.app", "messagingSenderId": "69574149016", "appId": "1:69574149016:web:b96ac3959f8070db4da1ed"};
-const VERSION = '2.1';
+const VERSION = '2.2';
 
 /* ---------- helpers ---------- */
 const AR = '٠١٢٣٤٥٦٧٨٩', FA = '۰۱۲۳۴۵۶۷۸۹';
@@ -388,6 +388,8 @@ const Cloud = {
     let resolveFirst; this.firstServer = new Promise(r => resolveFirst = r);
     const col = n => F.collection(this.db, 'shops', key, n);
     const opts = {includeMetadataChanges: true};
+    this.err = null;
+    const onErr = e => { this.err = (e && e.code) || 'error'; resolveFirst(false); this.changed(); };
     const onCol = name => snap => {
       const rows = snap.docs.map(d => Object.assign({id: d.id}, d.data()));
       if (name === 'items') S.items = rows; else if (name === 'moves') S.moves = rows; else S.deliveries = rows;
@@ -396,14 +398,14 @@ const Cloud = {
       if (this.got.itemsSrv && this.got.movesSrv && this.got.deliveriesSrv) resolveFirst(true);
     };
     this.unsub = [
-      F.onSnapshot(col('items'), opts, onCol('items')),
-      F.onSnapshot(col('moves'), opts, onCol('moves')),
-      F.onSnapshot(col('deliveries'), opts, onCol('deliveries')),
+      F.onSnapshot(col('items'), opts, onCol('items'), onErr),
+      F.onSnapshot(col('moves'), opts, onCol('moves'), onErr),
+      F.onSnapshot(col('deliveries'), opts, onCol('deliveries'), onErr),
       F.onSnapshot(F.doc(this.db, 'shops', key, 'meta', 'settings'), opts, snap => {
         if (snap.exists()) { const d = snap.data(); for (const k of ['shop', 'markup', 'rounding', 'low']) if (d[k] !== undefined) S.settings[k] = d[k];
           if (d.shop === 'المحل' && !snap.metadata.fromCache) { S.settings.shop = 'الطارق'; this.write([{t: 'settings', data: {shop: 'الطارق'}}]); } }
         this.got.settings = snap.metadata; this.changed();
-      })
+      }, onErr)
     ];
     window.addEventListener('online', () => this.changed()); window.addEventListener('offline', () => this.changed());
   },
@@ -433,12 +435,14 @@ const Cloud = {
     for (const m of data.moves) all.push(['moves', m.id, m]);
     for (const x of data.deliveries) { if (!x.id) x.id = uid(); all.push(['deliveries', x.id, x]); }
     // writes are queued on the phone first, so this also works with weak internet
-    const b0 = F.writeBatch(this.db); b0.set(F.doc(this.db, 'shops', this.key, 'meta', 'settings'), clean(data.settings), {merge: true}); b0.commit().catch(() => {});
+    const b0 = F.writeBatch(this.db), jobs = [];
+    b0.set(F.doc(this.db, 'shops', this.key, 'meta', 'settings'), clean(data.settings), {merge: true}); jobs.push(b0.commit());
     for (let i = 0; i < all.length; i += 400) {
       const b = F.writeBatch(this.db);
       for (const [c, id, v] of all.slice(i, i + 400)) b.set(F.doc(this.db, 'shops', this.key, c, id), clean(v));
-      b.commit().catch(() => toast('تعذّر رفع بعض البيانات'));
+      jobs.push(b.commit());
     }
+    return Promise.all(jobs);   // resolves once the server has confirmed every write
   },
   changeT: null,
   changed() { clearTimeout(this.changeT); this.changeT = setTimeout(() => { if (this.status() === 'ok') S.local.lastSync = Date.now(); save(); softRender(); }, 60); }
@@ -799,7 +803,7 @@ function syncCard() {
   return `<h3>جهازان على نفس المخزن</h3><div class="card stack">
       <div class="setrow"><span>الحالة</span><span class="sync ${st === 'ok' ? 'ok' : st === 'wait' ? 'wait' : ''}"><i></i>${st === 'ok' ? 'متزامن' : st === 'wait' ? 'جارٍ الرفع' : 'بدون إنترنت — سيُرفع لاحقًا'}</span></div>
       <div class="small muted">مفتاح المحل (أرسله للجهاز الثاني):</div><div class="keybox">${esc(Cloud.key)}</div>
-      <button class="btn pri wide" id="sShareKey">إرسال المفتاح</button>
+      <div class="row"><button class="btn pri grow" id="sShareKey">إرسال المفتاح</button><button class="btn" id="sCopyKey">نسخ</button></div>
       <button class="btn wide danger" id="sLeave">فصل هذا الجهاز</button></div>`;
 }
 function renderSet() {
@@ -845,6 +849,7 @@ function renderSet() {
   if ($('sCreate')) $('sCreate').onclick = createShop;
   if ($('sJoin')) $('sJoin').onclick = joinShop;
   if ($('sShareKey')) $('sShareKey').onclick = shareKey;
+  if ($('sCopyKey')) $('sCopyKey').onclick = () => (navigator.clipboard ? navigator.clipboard.writeText(Cloud.key) : Promise.reject()).then(() => toast('تم نسخ المفتاح'), () => toast('اضغط مطولًا على المفتاح لنسخه'));
   if ($('sLeave')) $('sLeave').onclick = leaveShop;
   if ($('sInstall')) $('sInstall').onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; renderSet(); };
   $('sWipe').onclick = async () => {
@@ -863,28 +868,35 @@ async function createShop() {
     toast('جارٍ التجهيز…');
     const key = newKey();
     await Cloud.connect(key);
-    S.local.sync = {key}; saveNow();
-    await Cloud.uploadAll(data);
-    render(); toast('تم إنشاء المحل المشترك');
+    S.local.sync = {key}; saveNow(); render();
+    toast(`جارٍ رفع ${fm(data.items.filter(i => !i.archived).length)} صنف…`);
+    const up = await Promise.race([Cloud.uploadAll(data).then(() => 'ok', e => 'err:' + (e && e.code)), new Promise(r => setTimeout(() => r('slow'), 30000))]);
+    if (up.startsWith('err')) throw new Error(up);
+    if (up === 'slow') { await ask('الرفع لسه شغال بسبب بطء النت. استنى لحد ما يظهر «متزامن» فوق، وبعدين ابعت المفتاح من الإعدادات.', 'تمام'); render(); return; }
+    render(); toast('تم إنشاء المحل المشترك ورفع الأصناف ✓');
     shareKey();
   } catch (e) { Cloud.disconnect(); S = data; S.local.sync = null; saveNow(); render(); toast('تعذّر الاتصال — تأكد من الإنترنت'); }
 }
 async function joinShop() {
   const key = await ask('اكتب أو الصق مفتاح المحل من الجهاز الأول. سيتم استبدال بيانات هذا الجهاز ببيانات المحل.', 'انضمام', false,
     '<input id="mIn" dir="ltr" autocomplete="off" style="margin-bottom:14px;font-family:monospace" placeholder="مفتاح المحل">');
-  if (!key || String(key).trim().length < 20) { if (key) toast('المفتاح غير صحيح'); return; }
+  if (!key) return;
+  const found = String(key).match(/[A-Za-z0-9]{20,}/);   // works with the key alone or the whole pasted message
+  if (!found) { toast('المفتاح غير صحيح — الصق الرسالة اللي فيها المفتاح'); return; }
+  const k = found[0];
   const before = JSON.parse(JSON.stringify(S)), undo = msg => { Cloud.disconnect(); S = before; S.local.sync = null; saveNow(); render(); toast(msg); };
   try {
     toast('جارٍ الاتصال…');
-    await Cloud.connect(String(key).trim());
-    const ok = await Promise.race([Cloud.firstServer, new Promise(r => setTimeout(() => r(false), 15000))]);
-    if (!ok) return undo('لا يوجد اتصال بالإنترنت — حاول مرة أخرى');
-    if (!S.items.length) return undo('لا يوجد محل بهذا المفتاح');
+    await Cloud.connect(k);
+    const ok = await Promise.race([Cloud.firstServer, new Promise(r => setTimeout(() => r(false), 20000))]);
+    if (Cloud.err) return undo('تعذّر الوصول للمحل (' + Cloud.err + ')');
+    if (!ok) return undo('النت ضعيف أو مقطوع — حاول مرة تانية');
+    if (!S.items.length) return undo('مفيش أصناف بالمفتاح ده. اتأكد إن الموبايل الأول ظاهر عليه «متزامن» وإن المفتاح صح.');
     S.local = before.local; S.local.sync = {key: Cloud.key}; S.draft = before.draft; saveNow(); go('sell'); toast('تم الانضمام — الأصناف ظاهرة الآن');
   } catch (e) { undo('تعذّر الاتصال — تأكد من الإنترنت'); }
 }
 function shareKey() {
-  const txt = 'مفتاح المحل لتطبيق المخزن:\n' + Cloud.key;
+  const txt = 'مفتاح المحل (الصقه في «الانضمام لمحل مشترك»):\n\n' + Cloud.key;
   if (navigator.share) navigator.share({text: txt}).catch(() => {});
   else if (window.Capacitor && Capacitor.Plugins.Share) Capacitor.Plugins.Share.share({text: txt}).catch(() => {});
   else navigator.clipboard.writeText(Cloud.key).then(() => toast('تم نسخ المفتاح'));
